@@ -1,11 +1,8 @@
 import random
 import json
 import os
-import time
-from collections import Counter
-from datetime import datetime, timezone, timedelta
 
-# ----------------------- คลังคำจากที่กำหนด (ไม่เปลี่ยนหมวด) + จัดระดับความยาก -----------------------
+# ----------------------- คลังคำ (หมวดคงเดิม) + จัดระดับความยาก -----------------------
 WORDS_BY_LEVEL = {
     "easy": {
         "animals": ["PANDA", "SHEEP", "HORSE", "GOOSE", "EAGLE", "ZEBRA", "WHALE"],
@@ -32,10 +29,11 @@ WORDS_BY_LEVEL = {
 
 ALL_CATEGORIES = ["animals","fruits","tools","instruments","colors"]
 
+# ----------------------- ค่าคงที่ -----------------------
 ATTEMPTS_FIXED = 6
 LEADERBOARD_FILE = "leaderboard.json"
-TIMEZONE_OFFSET = 7  # Asia/Bangkok (UTC+7)
 
+# ======================= (1) โหลดลีดเดอร์บอร์ด =======================
 def load_leaderboard():
     if not os.path.exists(LEADERBOARD_FILE):
         return {"players": {}}
@@ -45,48 +43,21 @@ def load_leaderboard():
     except Exception:
         return {"players": {}}
 
+# ======================= (2) เซฟลีดเดอร์บอร์ด =======================
 def save_leaderboard(data):
     with open(LEADERBOARD_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def calc_score(won: bool, attempts_used: int, attempts_allowed: int, difficulty: str) -> int:
-    mult = {"easy": 1.0, "medium": 1.4, "hard": 1.8}[difficulty]
-    if not won:
-        return 0
-    base = (attempts_allowed - attempts_used + 1) * 10
-    return int(base * mult)
-
-def now_bangkok_iso():
-    tz = timezone(timedelta(hours=TIMEZONE_OFFSET))
-    return datetime.now(tz).isoformat(timespec="seconds")
-
-def print_leaderboard(lb, top_n=10):
-    print("\n🏆 LEADER BOARD (Top {} โดยอิงคะแนนที่ดีที่สุด)".format(top_n))
-    players = []
-    for name, info in lb.get("players", {}).items():
-        players.append({
-            "name": name,
-            "best_score": info.get("best_score", 0),
-            "total_score": info.get("total_score", 0),
-            "games": info.get("games", 0),
-            "last_play": info.get("last_play", "-")
-        })
-    players.sort(key=lambda x: (x["best_score"], x["total_score"]), reverse=True)
-    for idx, p in enumerate(players[:top_n], start=1):
-        print(f"{idx:>2}. {p['name']:<12} | best: {p['best_score']:>4} | total: {p['total_score']:>4} | games: {p['games']:>2} | last: {p['last_play']}")
-
-def available_categories(diff: str):
-    return [c for c in ALL_CATEGORIES if len(WORDS_BY_LEVEL[diff].get(c, [])) > 0]
-
+# ======================= (3) สุ่มคำตามความยาก =======================
 def pick_answer(diff: str):
-    cats = available_categories(diff)
+    cats = [c for c in ALL_CATEGORIES if len(WORDS_BY_LEVEL[diff].get(c, [])) > 0]
     if not cats:
         raise ValueError(f"No words configured for difficulty '{diff}'")
-    category = random.choice(cats)               # สุ่มหมวดอัตโนมัติ
+    category = random.choice(cats)
     answer = random.choice(WORDS_BY_LEVEL[diff][category]).upper()
     return answer, category
 
-# ----------------------- Feedback: custom rule (เหลืองทุกตัวที่อยู่ในคำ) -----------------------
+# ======================= (4) ให้สีแบบ custom =======================
 def feedback(answer: str, guess: str) -> str:
     """
     กติกา custom:
@@ -96,37 +67,33 @@ def feedback(answer: str, guess: str) -> str:
     """
     n = len(answer)
     res = [""] * n
-    ans = answer
-    gss = guess
 
     # pass 1: เขียวก่อน
     for i in range(n):
-        if gss[i] == ans[i]:
+        if guess[i] == answer[i]:
             res[i] = "🟩"
 
-    # ชุดตัวอักษรทั้งหมดที่มีในคำตอบ (ไม่จำกัดจำนวน)
-    set_in_answer = set(ans)
+    set_in_answer = set(answer)
 
-    # pass 2: เหลือง/ขาว สำหรับที่ยังไม่เขียว
+    # pass 2: เหลือง/ขาว
     for i in range(n):
         if res[i] == "🟩":
             continue
-        ch = gss[i]
-        res[i] = "🟨" if ch in set_in_answer else "⬜"
+        res[i] = "🟨" if guess[i] in set_in_answer else "⬜"
 
     return "".join(res)
 
+# ======================= (5) เล่นหนึ่งรอบและบันทึกผล =======================
 def play_one_round(diff: str, name: str, lb: dict) -> tuple[bool, int]:
     """เล่น 1 รอบ: คืนค่า (แพ้ไหม, คะแนนรอบนี้). ถ้าแพ้ = True."""
     attempts_allowed = ATTEMPTS_FIXED
     answer, category = pick_answer(diff)
     word_len = len(answer)
 
-    print(f"\n🕹️ รอบใหม่! โหมด: {diff.upper()} | คำยาว {word_len} | โอกาส: {attempts_allowed}")
-    print("🟩 ถูกตำแหน่ง | 🟨 มีตัวนี้แต่ตำแหน่งผิด | ⬜ ไม่มีตัวนี้")
-    print("ℹ️ เดาความยาวไม่ตรง → ‘ไม่ตัดรอบ’ | ถ้าเหลือ 1 ครั้งสุดท้าย จะใบ้ ‘หมวด’ ให้อัตโนมัติ")
+    print(f"\n🕹️ รอบใหม่! โหมด: {diff.upper()} | หมวด(สุ่ม): {category} | คำยาว {word_len} | โอกาส: {attempts_allowed}")
+    print("🟩 ตรงตำแหน่ง | 🟨 มีตัวนี้ในคำตอบ (กี่ตัวก็เหลือง) | ⬜ ไม่มีตัวนี้")
+    print("ℹ️ เดาความยาวไม่ตรง → ‘ไม่ตัดรอบ’ | เหลือ 1 ครั้งสุดท้าย → ใบ้หมวด")
 
-    start_time = time.time()
     won = False
     attempts_used = 0
     used_hint = False
@@ -139,8 +106,6 @@ def play_one_round(diff: str, name: str, lb: dict) -> tuple[bool, int]:
             continue
 
         attempts_used += 1
-
-        # ใช้ feedback ตามกติกาใหม่
         print(feedback(answer, guess))
 
         if guess == answer:
@@ -156,21 +121,19 @@ def play_one_round(diff: str, name: str, lb: dict) -> tuple[bool, int]:
     if not won:
         print(f"💥 แพ้รอบนี้! คำตอบคือ: {answer}  (หมวด: {category})")
 
-    duration_sec = int(time.time() - start_time)
-    played_at = now_bangkok_iso()
-    score = calc_score(won, attempts_used, attempts_allowed, diff)
+    # คิดคะแนน (คูณตามความยาก) — ไม่มีเวลา/โซนเวลา
+    mult = {"easy": 1.0, "medium": 1.4, "hard": 1.8}[diff]
+    score = int(((attempts_allowed - attempts_used + 1) * 10) * mult) if won else 0
 
-    # อัปเดต leaderboard + ประวัติ (ไม่ยุ่งกับ “รีเซ็ตคะแนน session” ตรงนี้)
+    # อัปเดต leaderboard + ประวัติ (ตัด date/เวลา/last_play ออกทั้งหมด)
     p = lb["players"].get(name, {
         "best_score": 0,
         "total_score": 0,
         "games": 0,
-        "last_play": "-",
         "history": []
     })
 
     p["history"].append({
-        "date": played_at,
         "difficulty": diff,
         "category": category,
         "answer": answer,
@@ -178,26 +141,24 @@ def play_one_round(diff: str, name: str, lb: dict) -> tuple[bool, int]:
         "attempts_used": attempts_used,
         "won": won,
         "used_hint": used_hint,
-        "duration_sec": duration_sec,
         "score": score
     })
 
     p["games"] += 1
     p["total_score"] += score
     p["best_score"] = max(p["best_score"], score)
-    p["last_play"] = played_at
 
     lb["players"][name] = p
     save_leaderboard(lb)
 
-    mm, ss = divmod(duration_sec, 60)
-    print(f"\n📊 สรุปรอบนี้ | {'ชนะ' if won else 'แพ้'} | ใช้ {attempts_used}/{attempts_allowed} ครั้ง | เวลา {mm:02d}:{ss:02d} | แต้ม {score}")
-    print(f"➡️ สะสมรวม (ใน leaderboard): total {p['total_score']} | best {p['best_score']}")
+    print(f"\n📊 สรุปรอบนี้ | {'ชนะ' if won else 'แพ้'} | ใช้ {attempts_used}/{attempts_allowed} ครั้ง | แต้ม {score}")
+    print(f"➡️ รวมสะสมใน leaderboard: total {p['total_score']} | best {p['best_score']}")
 
     return (not won), score  # แพ้ไหม, คะแนนรอบนี้
 
+# ======================= (6) main: คุม session ทั้งหมด =======================
 def main():
-    print("🎮 WORDLE+ (เล่นต่อเนื่อง; attempts = 6 | เดาความยาวไม่ตรง ‘ไม่นับรอบ’ | รอบสุดท้ายมี HINT หมวด)")
+    print("🎮 WORDLE+ (เล่นต่อเนื่อง; attempts = 6 | ยาวไม่ตรง ‘ไม่นับรอบ’ | รอบสุดท้ายมี HINT | สีเหลืองไม่จำกัด)")
     lb = load_leaderboard()
 
     name = input("ใส่ชื่อผู้เล่น (ใช้ชื่อเดิมเพื่อเก็บคะแนนต่อ/อัปเดต best): ").strip() or "Player"
@@ -208,7 +169,7 @@ def main():
             break
         print("⚠️ พิมพ์แค่ easy / medium / hard นะ")
 
-    # ===== Session loop =====
+    # วนเล่นทีละรอบใน session เดียว
     session_round = 0
     session_points = 0
     while True:
@@ -218,25 +179,36 @@ def main():
         session_points += got
 
         if lost:
-            # แพ้ → ถามต่อไหม ถ้าต่อให้รีเซ็ต session_points เป็น 0 (ไม่แก้ leaderboard ที่บันทึกไว้)
             print(f"\n🟥 คุณแพ้รอบล่าสุด | SESSION POINTS ก่อนรีเซ็ต: {session_points}")
             cont = input("อยากเล่นต่อไหม? (y = ต่อ / n = หยุด): ").strip().lower()
             if cont == "y":
-                session_points = 0   # <<< รีเซ็ตคะแนน session
-                session_round = 0    # จะนับรอบใหม่ตั้งแต่ 1 เพื่อความชัด
+                session_points = 0
+                session_round = 0
                 print("🔄 เริ่ม session ใหม่! คะแนน session ถูกรีเซ็ตเป็น 0 (leaderboard ไม่เปลี่ยน)")
                 continue
             else:
                 print("\n🛑 จบเกม — ขอบคุณที่เล่น! (leaderboard ถูกบันทึกตามรอบที่ผ่านมาแล้ว)")
                 break
 
-        # ชนะ → ถามว่าจะเล่นต่อไหม
         cont = input("\n✅ ชนะรอบนี้! เล่นต่อไหม? (y = ต่อ / n = หยุด): ").strip().lower()
         if cont != "y":
             print("\n🟦 จบเกมตามคำสั่ง — คะแนนใน leaderboard ถูกบันทึกตามรอบที่ผ่านมาแล้ว")
             break
 
-    print_leaderboard(lb, top_n=10)
+    # โชว์ LEADERBOARD (ตัด last_play ออก)
+    print("\n🏆 LEADER BOARD (Top 10 โดย Best Score)")
+    players = []
+    for name_, info in lb.get("players", {}).items():
+        players.append({
+            "name": name_,
+            "best_score": info.get("best_score", 0),
+            "total_score": info.get("total_score", 0),
+            "games": info.get("games", 0),
+        })
+    players.sort(key=lambda x: (x["best_score"], x["total_score"]), reverse=True)
+    for idx, p in enumerate(players[:10], start=1):
+        print(f"{idx:>2}. {p['name']:<12} | best: {p['best_score']:>4} | total: {p['total_score']:>4} | games: {p['games']:>2}")
+
     print("\n💾 คะแนนถูกบันทึกใน 'leaderboard.json' — รอบหน้าพิมพ์ชื่อเดิมเพื่อเล่นต่อได้เลย 😉")
 
 if __name__ == "__main__":
