@@ -1,0 +1,103 @@
+import random
+import json
+import os
+
+ALL_WORDS = {
+    "easy": {
+        "animals": ["PANDA", "SHEEP", "HORSE", "GOOSE", "EAGLE", "ZEBRA", "WHALE"],
+        "fruits":  ["APPLE", "MANGO", "GRAPE", "LEMON", "PEACH"],
+        "tools":   ["RULER", "PHONE", "BOOKS", "TABLE"],
+        "instruments": ["AUDIO", "PIANO", "MUSIC", "SOUND", "DRUMS"],
+        "colors":  ["GREEN", "BLACK", "BROWN", "WHITE"]
+    },
+    "medium": {
+        "animals": ["MONKEY", "DONKEY", "SPIDER", "RABBIT"],
+        "fruits":  ["ORANGE", "BANANA", "PAPAYA", "MELONS"],
+        "tools":   ["HAMMER", "PENCIL", "CHISEL", "WRENCH"],
+        "instruments": ["GUITAR", "VIOLIN", "CYMBAL"],
+        "colors":  ["ORANGE", "INDIGO", "PURPLE", "SILVER"]
+    },
+    "hard": {
+        "animals": ["LEOPARD", "DOLPHIN", "GAZELLE"],
+        "fruits":  ["AVOCADO", "BANANAS", "ORANGES"],
+        "tools":   ["CHISELS", "HAMMERS", "SCISSOR"],
+        "instruments": ["TRUMPET", "MARIMBA", "CLARION"],
+        "colors":  ["MAGENTA", "CRIMSON"]
+    }
+}
+
+LEN_OF_WORD = {"easy": 5, "medium": 6, "hard": 7 }
+CATEGORIES = ["animals", "fruits", "tools", "instruments", "colors"]
+
+#ATTEMPTS_FIXED = 6
+LEADERBOARD_FILE = "leaderboard.json"
+
+def welcome():
+    print("welcome to worder")
+    """game explanation"""
+    
+def random_categories(difficulty):
+    category = random.choice(CATEGORIES)
+    words = ALL_WORDS[difficulty].get(category, [])
+    word = random.choice(words)
+    return category, word
+
+def check(word, guess):
+    result = [""] * len(word)
+    for i in range(len(word)):
+        guess_char = guess[i]
+        word_char = word[i]
+        if guess_char == word_char:
+            result[i] = "🟩"
+        elif guess_char in word:
+            result[i] = "🟨"
+        else:
+            result[i] = "⬜"
+    return result
+
+def main():
+    is_playing = True
+    difficulty = ""
+    guess = ""
+    correct = False
+    played_count = 0
+
+    while is_playing:
+        while difficulty.lower() not in ("easy", "medium", "hard"):
+            difficulty = input("Please select game difficulty (easy, medium, hard): ").strip().lower()
+
+        category, word = random_categories(difficulty)
+
+        played_count = 0
+        correct = False
+
+        for i in range(6):
+            guess = ""
+            while len(guess) != LEN_OF_WORD[difficulty]:
+                guess = input("enter guess: ").upper()
+
+            result = check(word, guess)
+            print("".join(result))
+
+            played_count += 1
+
+            if guess == word:
+                correct = True
+                break
+        
+            if 6 - played_count == 1:
+                print(f"category hint : {category.upper()}")
+
+
+        if correct:
+            print("you win correct!")
+            is_playing = input("continue playing?: (y/n): ").strip().lower() in ("y","yes")
+            if is_playing:
+                difficulty = ""
+            continue
+        else:
+            print(f"you lose. answer was: {word} (category: {category})")
+            is_playing = input("continue playing?: (y/n): ").strip().lower() in ("y","yes")
+            if is_playing:
+                difficulty = ""
+main()
