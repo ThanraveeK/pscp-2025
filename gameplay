@@ -28,6 +28,7 @@ ALL_WORDS = {
 
 LEN_OF_WORD = {"easy": 5, "medium": 6, "hard": 7 }
 CATEGORIES = ["animals", "fruits", "tools", "instruments", "colors"]
+DIFF_MULTIPLY = {"easy": 1.0, "medium": 1.4, "hard": 1.8}
 
 #ATTEMPTS_FIXED = 6
 LEADERBOARD_FILE = "leaderboard.json"
@@ -61,7 +62,10 @@ def main():
     guess = ""
     correct = False
     played_count = 0
-
+    total_score = 0
+    
+    username =  input()
+    
     while is_playing:
         while difficulty.lower() not in ("easy", "medium", "hard"):
             difficulty = input("Please select game difficulty (easy, medium, hard): ").strip().lower()
@@ -90,13 +94,20 @@ def main():
 
 
         if correct:
+            base = (6 - played_count + 1) * 100
+            multiplier = {"easy": 1.0, "medium": 1.4, "hard": 1.8}[difficulty]
+            total_score += int(base * multiplier)
+            
             print("you win correct!")
+            print(f"total score: {total_score}")
             is_playing = input("continue playing?: (y/n): ").strip().lower() in ("y","yes")
+            
             if is_playing:
                 difficulty = ""
             continue
         else:
             print(f"you lose. answer was: {word} (category: {category})")
+            print(f"total score: {total_score}")
             is_playing = input("continue playing?: (y/n): ").strip().lower() in ("y","yes")
             if is_playing:
                 difficulty = ""
